@@ -32,7 +32,7 @@ The VTK package can be used to export and import `Mesh`s, and `Field`s.
 
 `VTKExporter` accepts a `Mesh` or a `Field`. `addField` attaches further fields. `VTKImporter` returns the mesh and looks up fields by the name stored in the file.
 
-A field holds a scalar or a 2D/3D column vector on vertices, on cells, or on both. A cell field must provide a value for every cell in the mesh.
+A field holds a scalar or a 2D/3D column vector. Grade 0 is point data. Higher grades are cell data, in cell order, and a field may hold both under one name. A cell field must provide a value for every cell. Two fields cannot share a name.
 
 ## Tests
 

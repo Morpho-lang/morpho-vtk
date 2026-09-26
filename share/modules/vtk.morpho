@@ -21,6 +21,7 @@ var _vtkCellType = Matrix([3, 5, 10])
 
 // Error messages. Tags match the previous vtk module.
 var _VtkInvalidFnameErr = Error("InvalidFname", "fieldname cannot have embedded whitespaces.")
+var _VtkDuplicateFnameErr = Error("DuplicateFname", "A field with this name is already being exported.")
 var _VtkFieldShapeErr = Error("FieldShapeErr", "The field shape cannot be written.")
 var _VtkFieldDimErr = Error("FieldDimErr", "Expected a scalar or a 2D/3D vector field.")
 var _VtkFieldMeshErr = Error("FieldMeshErr", "Field must be defined on the exporter mesh.")
@@ -54,6 +55,7 @@ fn _ensureVtk(String filename) {
  *   export(filename)                    ".vtk" is appended if needed
  *
  * A missing fieldname becomes "scalars" or "vectors" when the file is written.
+ * Two fields cannot share a name.
  * ---------------------------------------------------------------- */
 
 class VTKExporter {
@@ -243,11 +245,15 @@ class VTKExporter {
       _VtkFieldMeshErr.throw("Field is defined on a different mesh than the one being exported.")
     }
     _checkFieldName(fieldname)
+    var name = self._arrayName(fieldname, self._sample(field))
+    for (n in self.fieldnames) {
+      if (n == name) _VtkDuplicateFnameErr.throw("The name `${name}` is already used by another field.")
+    }
     self.fields.append(field)
-    self.fieldnames.append(fieldname)
+    self.fieldnames.append(name)
   }
 
-  addfield(field, fieldname=nil) { self.addField(field, fieldname=fieldname) }
+  addfield(field, fieldname=nil) { self.addField(field, fieldname=fieldname) } // [Compatibility shim]
 
   export(String filename) {
     self.filename = _ensureVtk(filename)
@@ -508,12 +514,12 @@ class VTKImporter {
 
   fieldList() { return self.fields.keys() }
 
-  fieldlist() { return self.fieldList() }
+  fieldlist() { return self.fieldList() } // [Compatibility shim]
 
   containsField(String fieldname) {
     _checkFieldName(fieldname)
     return self.fields.contains(fieldname)
   }
 
-  containsfield(fieldname) { return self.containsField(fieldname) }
+  containsfield(fieldname) { return self.containsField(fieldname) } // [Compatibility shim]
 }

@@ -42,11 +42,13 @@ where,
 * `fieldname` is an optional argument that assigns a name to the field
   in the VTK file. This name is required to be a character
   string without embedded whitespace. If not provided, the name would be
-  either "scalars" or "vectors" depending on the field type**. 
+  either "scalars" or "vectors" depending on the field type**. Two fields
+  cannot use the same name.
 
-** A field holds a scalar or a 2D/3D column vector on vertices, on cells,
-or on both. Tensor fields are not supported. A cell field must provide
-a value for every cell in the mesh.
+** Grade 0 is point data. Higher grades are cell data, written in cell
+order: edges, then faces, then volumes. One field may hold both under a
+single name. A cell field must provide a value for every cell. Supported
+cells are lines, triangles, and tetrahedra. Tensor fields are not supported.
 
 Minimal example:
 
@@ -95,7 +97,7 @@ Use the `fieldList` method to get the list of the names of the fields contained 
 
 Use the `containsField` method to check whether the file contains a field by a given `fieldname`:
 
-    if (tkI.containsField(fieldname)) {
+    if (vtkI.containsField(fieldname)) {
         ... 
     }
 

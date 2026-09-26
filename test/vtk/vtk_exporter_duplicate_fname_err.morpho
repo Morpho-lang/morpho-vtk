@@ -1,0 +1,11 @@
+// Two unnamed scalar fields would both be written as "scalars"
+
+import vtk
+import meshtools
+
+var m = LineMesh(fn (t) [t,0,0], -1..1:2)
+var f = Field(m, fn(x,y,z) x)
+var g = Field(m, fn(x,y,z) x+1)
+
+var vtkE = VTKExporter(f)
+vtkE.addField(g) // expect: Error 'DuplicateFname' : The name `scalars` is already used by another field.
