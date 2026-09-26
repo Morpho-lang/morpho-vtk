@@ -1,0 +1,5 @@
+// CELLS without CELL_TYPES is rejected
+
+import vtk
+
+var vtkI = VTKImporter("missing_cell_types.vtk") // expect: Error 'CellTypeErr'

@@ -1,0 +1,5 @@
+// A quad (VTK cell type 9) must not be imported as a tetrahedron
+
+import vtk
+
+var vtkI = VTKImporter("quad.vtk") // expect: Error 'CellTypeErr'
