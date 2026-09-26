@@ -1,0 +1,6 @@
+// Listing all the fields in the file
+import vtk
+
+var vtkI = VTKImporter("mesh_scalar_vector.vtk")
+
+print vtkI.fieldList() // expect: [ f, g ]
