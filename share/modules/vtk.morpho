@@ -20,7 +20,6 @@ import parser
 var _vtkCellType = Matrix([3, 5, 10])
 
 // Error messages. Tags match the previous vtk module.
-var _VtkInitErr = Error("InitErr", "Expected a Mesh or a Field object.")
 var _VtkFnameNotStrErr = Error("FnameNotStr", "Expected a string.")
 var _VtkInvalidFnameErr = Error("InvalidFname", "fieldname cannot have embedded whitespaces.")
 var _VtkObjNotFieldErr = Error("ObjNotField", "Expected a Field object.")
@@ -66,25 +65,17 @@ fn _ensureVtk(filename) {
  * ---------------------------------------------------------------- */
 
 class VTKExporter {
-  _initMesh(mesh) {
+  _init(mesh) {
     self.fields = []
     self.fieldnames = []
     self.mesh = mesh
     self.maxg = mesh.maxgrade()
   }
 
-  _initField(field, fieldname) {
-    self.fields = []
-    self.fieldnames = []
-    self.mesh = field.mesh()
+  init(Mesh mesh, fieldname=nil) { self._init(mesh) }
+  init(Field field, fieldname=nil) {
+    self._init(field.mesh())
     self.addField(field, fieldname=fieldname)
-    self.maxg = self.mesh.maxgrade()
-  }
-
-  init(Mesh mesh, fieldname=nil) { self._initMesh(mesh) }
-  init(Field field, fieldname=nil) { self._initField(field, fieldname) }
-  init(obj, fieldname=nil) {
-    _VtkInitErr.throw("Expected a Mesh or a Field object, but received `${obj}`.")
   }
 
   _writePreamble(file) { // Legacy unstructured-grid header

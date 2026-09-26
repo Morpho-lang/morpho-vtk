@@ -1,8 +1,8 @@
 // Testing whether initializing VTKExporter with an object that is
-// neither a Mesh nor a Field produces the right error
+// neither a Mesh nor a Field fails multiple dispatch
 
 import vtk
 
 var a = 3.0
 
-var vtkE = VTKExporter(a) // expect: Error 'InitErr' : Expected a Mesh or a Field object, but received `3`.
+var vtkE = VTKExporter(a) // expect: Error 'MltplDsptchFld'
