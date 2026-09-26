@@ -1,6 +1,6 @@
 # morpho-vtk
 
-Morpho package for reading and writing meshes and fields in the legacy VTK unstructured-grid format.
+[Morpho](https://github.com/Morpho-lang/morpho) package for reading and writing meshes and fields in the legacy VTK unstructured-grid format.
 
 The module depends on the core `meshtools` and `parser` modules.
 
