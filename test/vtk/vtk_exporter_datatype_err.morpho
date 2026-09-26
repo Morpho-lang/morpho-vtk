@@ -1,0 +1,8 @@
+// datatype must be "float" or "double"
+
+import vtk
+import meshtools
+
+var m = LineMesh(fn (t) [t,0,0], -1..1:2)
+
+var vtkE = VTKExporter(m, datatype="single") // expect: Error 'DataTypeErr' : Expected `float` or `double`, but received `single`.

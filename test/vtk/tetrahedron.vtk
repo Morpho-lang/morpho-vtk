@@ -3,7 +3,7 @@ Exported using Morpho https://github.com/Morpho-lang/morpho
 ASCII 
 DATASET UNSTRUCTURED_GRID 
 
-POINTS 4 float 
+POINTS 4 double 
 0 0 0.612372 
 -0.288675 -0.5 -0.204124 
 -0.288675 0.5 -0.204124 

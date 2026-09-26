@@ -27,6 +27,8 @@ var _VtkFieldDimErr = Error("FieldDimErr", "Expected a scalar or a 2D/3D vector 
 var _VtkFieldMeshErr = Error("FieldMeshErr", "Field must be defined on the exporter mesh.")
 var _VtkFieldNotFoundErr = Error("FieldNotFound", "Couldn't find the field in the file.")
 var _VtkCellTypeErr = Error("CellTypeErr", "Unsupported or missing VTK cell type.")
+var _VtkPrecisionErr = Error("PrecisionErr", "Precision must be a positive integer.")
+var _VtkDataTypeErr = Error("DataTypeErr", "Expected `float` or `double`.")
 
 // Check that a field name doesn't contain spaces.
 fn _checkFieldName(Nil fieldname) { }
@@ -49,8 +51,8 @@ fn _ensureVtk(String filename) {
  * VTKExporter
  *
  * Write a Mesh, and any Fields added to it, as one .vtk file.
- *   VTKExporter(mesh)
- *   VTKExporter(field, fieldname=nil)   also records that field
+ *   VTKExporter(mesh, precision=nil, datatype=nil)
+ *   VTKExporter(field, fieldname=nil, precision=nil, datatype=nil)   also records that field
  *   addField(field, fieldname=nil)      addfield is the lowercase veneer
  *   export(filename)                    ".vtk" is appended if needed
  *
@@ -59,17 +61,40 @@ fn _ensureVtk(String filename) {
  * ---------------------------------------------------------------- */
 
 class VTKExporter {
-  _init(mesh) {
+  _init(mesh, precision, datatype) {
     self.fields = []
     self.fieldnames = []
     self.mesh = mesh
     self.maxg = mesh.maxgrade()
+    self._setFormat(precision, datatype)
   }
 
-  init(Mesh mesh, fieldname=nil) { self._init(mesh) }
-  init(Field field, fieldname=nil) {
-    self._init(field.mesh())
+  init(Mesh mesh, fieldname=nil, precision=nil, datatype=nil) {
+    self._init(mesh, precision, datatype)
+  }
+  init(Field field, fieldname=nil, precision=nil, datatype=nil) {
+    self._init(field.mesh(), precision, datatype)
     self.addField(field, fieldname=fieldname)
+  }
+
+  _setFormat(precision, datatype) { // Significant digits, then float or double
+    self.digits = nil
+    self.format = "%g"
+    if (!isnil(precision)) {
+      self.digits = Int(precision)
+      if (self.digits < 1) _VtkPrecisionErr.throw("Precision must be a positive integer, but received `${precision}`.")
+      if (self.digits > 17) _VtkPrecisionErr.throw("A double holds at most 17 significant digits, but received `${self.digits}`.")
+      self.format = "%.${self.digits}g"
+    }
+
+    self.datatype = "double"
+    if (!isnil(datatype)) {
+      if (datatype != "float" and datatype != "double") {
+        _VtkDataTypeErr.throw("Expected `float` or `double`, but received `${datatype}`.")
+      }
+      self.datatype = datatype
+    }
+    if (!isnil(self.digits) and self.digits > 7) self.datatype = "double"
   }
 
   _writePreamble(file) { // Legacy unstructured-grid header
@@ -79,25 +104,25 @@ class VTKExporter {
     file.write("DATASET UNSTRUCTURED_GRID \n")
   }
 
-  _writeEntry(file, Float v) { file.write("${v} ") }
+  _writeEntry(file, Float v) { file.write("${v.format(self.format)} ") }
   _writeEntry(file, Matrix v) { // Write x y z, padding a short vector with zeros
-    var y = 0, z = 0
+    var y = 0.0, z = 0.0
     if (v.count() > 1) y = v[1]
     if (v.count() > 2) z = v[2]
-    file.write("${v[0]} ${y} ${z} ")
+    file.write("${v[0].format(self.format)} ${y.format(self.format)} ${z.format(self.format)} ")
   }
 
   _writeArray(file, name, Float sample) {
-    file.write("SCALARS ${name} float 1 ")
+    file.write("SCALARS ${name} ${self.datatype} 1 ")
     file.write("LOOKUP_TABLE default ")
   }
   _writeArray(file, name, Matrix sample) {
-    file.write("VECTORS ${name} float")
+    file.write("VECTORS ${name} ${self.datatype}")
   }
 
   _writeVertices(file) {
     self.nvertices = self.mesh.count(0)
-    file.write("POINTS ${self.nvertices} float ")
+    file.write("POINTS ${self.nvertices} ${self.datatype} ")
     for (id in 0...self.mesh.count()) {
       self._writeEntry(file, self.mesh.vertexposition(id))
     }
@@ -316,7 +341,7 @@ class VTKImporter {
 
       if (self.t=="POINTS") {
         self.nvertices = Int(self.tok.next())
-        self.t = self.tok.next() // skip "float"
+        self.t = self.tok.next() // skip the data type
         for (i in 0...self.nvertices) self._addVertex()
       }
 
@@ -342,13 +367,13 @@ class VTKImporter {
 
       if (self.t=="SCALARS") {
         self.fieldname = self.tok.next()
-        for (j in 1..4) self.t = self.tok.next() // float, 1, LOOKUP_TABLE, default
+        for (j in 1..4) self.t = self.tok.next() // data type, 1, LOOKUP_TABLE, default
         self._store(self._readScalars(self._valueCount()))
       }
 
       if (self.t=="VECTORS") {
         self.fieldname = self.tok.next()
-        self.t = self.tok.next() // skip "float"
+        self.t = self.tok.next() // skip the data type
         self._store(self._readVectors(self._valueCount()))
       }
     }

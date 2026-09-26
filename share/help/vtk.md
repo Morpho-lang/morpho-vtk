@@ -30,25 +30,6 @@ where `obj` can either be
 Use the `export` method to export to a VTK file. 
 
     vtkE.export("output.vtk")
- 
-Optionally, use the `addField` method to add one or more fields before
-exporting:
-
-    vtkE.addField(f, fieldname="f")
-
-where,
-
-* `f` is the field object to be exported
-* `fieldname` is an optional argument that assigns a name to the field
-  in the VTK file. This name is required to be a character
-  string without embedded whitespace. If not provided, the name would be
-  either "scalars" or "vectors" depending on the field type**. Two fields
-  cannot use the same name.
-
-** Grade 0 is point data. Higher grades are cell data, written in cell
-order: edges, then faces, then volumes. One field may hold both under a
-single name. A cell field must provide a value for every cell. Supported
-cells are lines, triangles, and tetrahedra. Tensor fields are not supported.
 
 Minimal example:
 
@@ -57,19 +38,31 @@ Minimal example:
 
     var m1 = LineMesh(fn (t) [t,0,0], -1..1:2)
 
-    var vtkE = VTKExporter(m1) // Export just the mesh 
-    
+    var vtkE = VTKExporter(m1) // Export just the mesh     
     vtkE.export("mesh.vtk")
 
     var f1 = Field(m1, fn(x,y,z) x)
-
-    var g1 = Field(m1, fn(x,y,z) Matrix([x,2*x,3*x]))
-
     vtkE = VTKExporter(f1, fieldname="f") // Export fields
-
-    vtkE.addField(g1, fieldname="g")
-
     vtkE.export("data.vtk")
+
+You may use the `addField` method to add one or more fields before
+exporting:
+
+    vtkE.addField(f, fieldname="f")
+
+where,
+
+* `f` is the field object to be exported
+* `fieldname` is an optional argument that assigns a name to the field
+  in the VTK file. 
+
+You can control the precision of the output by setting the precision option: 
+
+    var vtkE = VTKExporter(obj, precision=12)
+
+You can also select the float representation that the VTK file uses by setting the datatype option:
+
+    var vtkE = VTKExporter(obj, datatype="float")
 
 ## VTKImporter
 [tagvtkimporter]: # (VTKImporter)
@@ -111,8 +104,5 @@ Minimal example:
     var vtkI = VTKImporter("data.vtk")
 
     var m = vtkI.mesh()
-
     var f = vtkI.field("f")
-
-    var g = vtkI.field("g")
 

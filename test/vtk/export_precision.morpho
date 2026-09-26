@@ -1,0 +1,14 @@
+// precision is the number of significant digits written
+
+import vtk
+import meshtools
+
+var m = LineMesh(fn (t) [t,0,0], -1..1:2)
+var f = Field(m, 1.23456789)
+
+VTKExporter(f, fieldname="f", precision=3).export("data.vtk")
+
+var f2 = VTKImporter("data.vtk").field("f")
+
+print f2[0, 0] // expect: 1.23
+print f2[0, 1] // expect: 1.23

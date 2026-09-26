@@ -1,0 +1,8 @@
+// double holds at most 17 significant digits
+
+import vtk
+import meshtools
+
+var m = LineMesh(fn (t) [t,0,0], -1..1:2)
+
+var vtkE = VTKExporter(m, precision=18) // expect: Error 'PrecisionErr' : A double holds at most 17 significant digits, but received `18`.

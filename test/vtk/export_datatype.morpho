@@ -1,0 +1,41 @@
+// datatype selects the VTK storage type. nil means double.
+
+import vtk
+import meshtools
+import parser
+
+fn _has(filename, word) {
+  var f = File(filename)
+  var tok = Tokenizer(f)
+  while (!f.eof()) {
+    if (tok.next() == word) {
+      f.close()
+      return true
+    }
+  }
+  f.close()
+  return false
+}
+
+var m = LineMesh(fn (t) [t,0,0], -1..1:2)
+
+VTKExporter(m).export("data.vtk")
+print _has("data.vtk", "double") // expect: true
+print _has("data.vtk", "float") // expect: false
+
+VTKExporter(m, datatype=nil).export("data.vtk")
+print _has("data.vtk", "double") // expect: true
+
+VTKExporter(m, datatype="float").export("data.vtk")
+print _has("data.vtk", "float") // expect: true
+print _has("data.vtk", "double") // expect: false
+
+VTKExporter(m, datatype="double").export("data.vtk")
+print _has("data.vtk", "double") // expect: true
+
+VTKExporter(m, precision=7, datatype="float").export("data.vtk")
+print _has("data.vtk", "float") // expect: true
+
+VTKExporter(m, precision=12, datatype="float").export("data.vtk")
+print _has("data.vtk", "double") // expect: true
+print _has("data.vtk", "float") // expect: false
