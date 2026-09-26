@@ -1,0 +1,17 @@
+// Round-trip a scalar stored on the faces of a surface mesh
+
+import vtk
+import meshtools
+
+var m1 = AreaMesh(fn (u, v) [u, v, 0], -1..1:2, -1..1:2)
+var f1 = Field(m1, 0.0, grade=2)
+f1[2, 0] = 3
+f1[2, 1] = 7
+
+VTKExporter(f1, fieldname="c").export("data.vtk")
+
+var f2 = VTKImporter("data.vtk").field("c")
+
+print f2.linearize()
+// expect: [ 3 ]
+// expect: [ 7 ]

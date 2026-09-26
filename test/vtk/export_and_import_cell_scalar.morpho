@@ -1,0 +1,15 @@
+// Round-trip a scalar stored on the edges of a line mesh
+
+import vtk
+import meshtools
+
+var m1 = LineMesh(fn (t) [t, 0, 0], -1..1:2)
+var f1 = Field(m1, 0.0, grade=1)
+f1[1, 0] = 4
+
+VTKExporter(f1, fieldname="c").export("data.vtk")
+
+var f2 = VTKImporter("data.vtk").field("c")
+
+print f2[1, 0] // expect: 4
+print f2.linearize() // expect: [ 4 ]

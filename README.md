@@ -30,9 +30,9 @@ The VTK package can be used to export and import `Mesh`s, and `Field`s.
     var vtkI = VTKImporter("mesh.vtk")
     print vtkI.mesh()
 
-`VTKExporter` accepts a `Mesh` or a `Field`. `addField` attaches further vertex fields. `VTKImporter` returns the mesh and looks up fields by the name stored in the file.
+`VTKExporter` accepts a `Mesh` or a `Field`. `addField` attaches further fields. `VTKImporter` returns the mesh and looks up fields by the name stored in the file.
 
-Fields must live on vertices (shape `[1,0,0]`) and be a scalar or a 2D/3D column vector.
+A field holds a scalar or a 2D/3D column vector on vertices, on cells, or on both. A cell field must provide a value for every cell in the mesh.
 
 ## Tests
 

@@ -5,8 +5,7 @@
 [tagvtk]: # (vtk)
 
 The vtk module contains classes to allow I/O of meshes and fields using
-the VTK Legacy Format. Note that this currently only supports scalar or 2D/3D vector (column matrix) fields that live on the vertices ( shape `[1,0,0]`). Support for
-tensorial fields and fields on cells coming soon.
+the VTK Legacy Format. Fields may hold a scalar or a 2D/3D column vector on vertices, on cells, or on both. Tensor fields are not supported.
 
 [showsubtopics]: # (subtopics)
 
@@ -45,9 +44,9 @@ where,
   string without embedded whitespace. If not provided, the name would be
   either "scalars" or "vectors" depending on the field type**. 
 
-** Note that this currently only supports scalar or 2D/3D vector (column
-matrix) fields that live on the vertices ( shape `[1,0,0]`). Support for
-tensorial fields and fields on cells coming soon.
+** A field holds a scalar or a 2D/3D column vector on vertices, on cells,
+or on both. Tensor fields are not supported. A cell field must provide
+a value for every cell in the mesh.
 
 Minimal example:
 

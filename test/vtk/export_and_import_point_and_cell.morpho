@@ -1,0 +1,24 @@
+// One field can hold vertex values and cell values under the same name
+
+import vtk
+import meshtools
+
+var m1 = LineMesh(fn (t) [t, 0, 0], -1..1:2)
+var f1 = Field(m1, 0.0, grade=[1, 1])
+f1[0, 0] = -1
+f1[0, 1] = 1
+f1[1, 0] = 5
+
+VTKExporter(f1, fieldname="f").export("data.vtk")
+
+var vtkI = VTKImporter("data.vtk")
+
+print vtkI.fieldList() // expect: [ f ]
+
+var f2 = vtkI.field("f")
+print f2[0, 0] // expect: -1
+print f2[1, 0] // expect: 5
+print f2.linearize()
+// expect: [ -1 ]
+// expect: [ 1 ]
+// expect: [ 5 ]

@@ -1,0 +1,17 @@
+// Round-trip a vector stored on the edges of a line mesh
+
+import vtk
+import meshtools
+
+var m1 = LineMesh(fn (t) [t, 0, 0], -1..1:2)
+var f1 = Field(m1, Matrix([0, 0, 0]), grade=1)
+f1[1, 0] = Matrix([1, 2, 3])
+
+VTKExporter(f1, fieldname="c").export("data.vtk")
+
+var f2 = VTKImporter("data.vtk").field("c")
+
+print f2.linearize()
+// expect: [ 1 ]
+// expect: [ 2 ]
+// expect: [ 3 ]

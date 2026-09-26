@@ -6,11 +6,11 @@
 
 /* ----------------------------------------------------------------
  * The vtk module provides:
- * - VTKExporter : write a Mesh and vertex Fields to a .vtk file
- * - VTKImporter : read a Mesh and vertex Fields from a .vtk file
+ * - VTKExporter : write a Mesh and Fields to a .vtk file
+ * - VTKImporter : read a Mesh and Fields from a .vtk file
  *
- * Legacy unstructured-grid ASCII only. Fields must live on vertices
- * (shape [1,0,0]) and be a scalar or a 2D/3D column vector.
+ * Legacy unstructured-grid ASCII only. A field holds scalars or
+ * 2D/3D column vectors on vertices, on cells, or on both.
  * ---------------------------------------------------------------- */
 
 import meshtools
@@ -20,33 +20,23 @@ import parser
 var _vtkCellType = Matrix([3, 5, 10])
 
 // Error messages. Tags match the previous vtk module.
-var _VtkFnameNotStrErr = Error("FnameNotStr", "Expected a string.")
 var _VtkInvalidFnameErr = Error("InvalidFname", "fieldname cannot have embedded whitespaces.")
-var _VtkObjNotFieldErr = Error("ObjNotField", "Expected a Field object.")
-var _VtkFieldShapeErr = Error("FieldShapeErr", "Fields with shape other than (1, 0, 0) are not currently supported.")
+var _VtkFieldShapeErr = Error("FieldShapeErr", "The field shape cannot be written.")
 var _VtkFieldDimErr = Error("FieldDimErr", "Expected a scalar or a 2D/3D vector field.")
 var _VtkFieldMeshErr = Error("FieldMeshErr", "Field must be defined on the exporter mesh.")
 var _VtkFieldNotFoundErr = Error("FieldNotFound", "Couldn't find the field in the file.")
 var _VtkCellTypeErr = Error("CellTypeErr", "Unsupported or missing VTK cell type.")
 
-// Reject a non-string or a name with embedded spaces. nil is allowed.
-fn _checkFieldName(fieldname) {
-  if (isnil(fieldname)) return
-  if (!isstring(fieldname)) {
-    _VtkFnameNotStrErr.throw("Expected a string, but received `${fieldname}`.")
-  }
+// Check that a field name doesn't contain spaces.
+fn _checkFieldName(Nil fieldname) { }
+fn _checkFieldName(String fieldname) {
   for (c in fieldname) {
-    if (c==" ") {
-      _VtkInvalidFnameErr.throw("fieldname (`${fieldname}`) cannot have embedded whitespaces.")
-    }
+    if (c==" ") _VtkInvalidFnameErr.throw("fieldname (`${fieldname}`) cannot have embedded whitespaces.")
   }
 }
 
 // Append ".vtk" unless the name already ends in that extension.
-fn _ensureVtk(filename) {
-  if (!isstring(filename)) {
-    _VtkFnameNotStrErr.throw("Expected a string, but received `${filename}`.")
-  }
+fn _ensureVtk(String filename) {
   var fl = filename.split(".")
   var n = fl.count()
   if (n == 0) return "${filename}.vtk"
@@ -57,7 +47,7 @@ fn _ensureVtk(filename) {
 /* ----------------------------------------------------------------
  * VTKExporter
  *
- * Write a Mesh, and any vertex Fields added to it, as one .vtk file.
+ * Write a Mesh, and any Fields added to it, as one .vtk file.
  *   VTKExporter(mesh)
  *   VTKExporter(field, fieldname=nil)   also records that field
  *   addField(field, fieldname=nil)      addfield is the lowercase veneer
@@ -87,19 +77,27 @@ class VTKExporter {
     file.write("DATASET UNSTRUCTURED_GRID \n")
   }
 
-  _writeVector(file, v) { // Pad a 2-vector to 3D; VTK points and vectors are 3-wide
-    if (v.count()==2) {
-      file.write("${v[0]} ${v[1]} 0 ")
-    } else {
-      file.write("${v[0]} ${v[1]} ${v[2]} ")
-    }
+  _writeEntry(file, Float v) { file.write("${v} ") }
+  _writeEntry(file, Matrix v) { // Write x y z, padding a short vector with zeros
+    var y = 0, z = 0
+    if (v.count() > 1) y = v[1]
+    if (v.count() > 2) z = v[2]
+    file.write("${v[0]} ${y} ${z} ")
+  }
+
+  _writeArray(file, name, Float sample) {
+    file.write("SCALARS ${name} float 1 ")
+    file.write("LOOKUP_TABLE default ")
+  }
+  _writeArray(file, name, Matrix sample) {
+    file.write("VECTORS ${name} float")
   }
 
   _writeVertices(file) {
     self.nvertices = self.mesh.count(0)
     file.write("POINTS ${self.nvertices} float ")
     for (id in 0...self.mesh.count()) {
-      self._writeVector(file, self.mesh.vertexposition(id))
+      self._writeEntry(file, self.mesh.vertexposition(id))
     }
     file.write("\n")
   }
@@ -151,45 +149,17 @@ class VTKExporter {
     self._writeCellTypes(file)
   }
 
-  _writeField(file, field, fieldname) { // Vertex scalar or 2D/3D column vector only
-    var f0 = field[0,0,0]
-    var dof = isfloat(f0) ? 1 : f0.count()
-
-    if (dof == 1) {
-      if (isnil(fieldname)) fieldname = "scalars"
-      file.write("SCALARS ${fieldname} float 1 ")
-      file.write("LOOKUP_TABLE default ")
-      for (id in 0...self.mesh.count()) {
-        file.write("${field[0,id]} ")
-      }
-    } else {
-      if (isnil(fieldname)) fieldname = "vectors"
-      file.write("VECTORS ${fieldname} float")
-      for (id in 0...self.mesh.count()) {
-        self._writeVector(file, field[0,id])
-      }
+  _sample(field) { // One stored value
+    var shp = field.shape()
+    for (g in 0...shp.count()) {
+      if (shp[g] != 0 and field.mesh().count(g) > 0) return field[g, 0]
     }
-    file.write("\n")
+    return nil
   }
 
-  _checkField(field) {
-    if (!isfield(field)) {
-      _VtkObjNotFieldErr.throw("Expected a Field object, but received `${field}`.")
-    }
-
-    var shp = field.shape()
-    var maxgrade = field.mesh().maxgrade()
-    var wrongShape = (shp[0]!=1)
-    for (i in 1...maxgrade) {
-      wrongShape = wrongShape or (shp[i]!=0)
-    }
-    if (wrongShape) {
-      _VtkFieldShapeErr.throw("Received a field with shape `${shp}`. Fields with shape other than (1, 0, 0) are not currently supported.")
-    }
-
-    var f0 = field[0,0,0]
-    if (isfloat(f0)) return
-    var dim = f0.dimensions()
+  _checkValue(v) { // Scalar, or a 2D or 3D column vector
+    if (isfloat(v)) return
+    var dim = v.dimensions()
     if (dim[1] != 1) {
       _VtkFieldDimErr.throw("Expected a scalar or a 2D/3D vector field, but received a non-columnar matrix with dimensions ${dim}.")
     }
@@ -198,28 +168,109 @@ class VTKExporter {
     }
   }
 
-  addField(field, fieldname=nil) {
+  _checkField(field) {
+    var shp = field.shape()
+    var mesh = field.mesh()
+    var any = false
+    var cell = false
+    for (g in 0...shp.count()) {
+      if (shp[g] != 0 and shp[g] != 1) {
+        _VtkFieldShapeErr.throw("Received a field with shape `${shp}`. Each grade must hold one value or none.")
+      }
+      if (shp[g] == 0 or mesh.count(g) == 0) continue
+      if (g > 0) cell = true
+      any = true
+    }
+    if (!any) {
+      _VtkFieldShapeErr.throw("Received a field with shape `${shp}`. The field has no values to write.")
+    }
+    self._checkValue(self._sample(field))
+    if (cell) {
+      for (g in 1..mesh.maxgrade()) {
+        if (mesh.count(g) == 0) continue
+        var n = 0
+        if (g < shp.count()) n = shp[g]
+        if (n == 0) {
+          _VtkFieldShapeErr.throw("Received a field with shape `${shp}`. The field must provide a value for every cell.")
+        }
+      }
+    }
+  }
+
+  _hasGrade(field, g) {
+    var shp = field.shape()
+    if (g >= shp.count()) return false
+    return shp[g] != 0 and field.mesh().count(g) > 0
+  }
+
+  _hasCellData(field) {
+    var shp = field.shape()
+    for (g in 1...shp.count()) {
+      if (self._hasGrade(field, g)) return true
+    }
+    return false
+  }
+
+  _arrayName(name, sample) {
+    if (!isnil(name)) return name
+    if (isfloat(sample)) return "scalars"
+    return "vectors"
+  }
+
+  _writeValues(file, field, fieldname) { // Header for this field's scalar or vector values
+    var sample = self._sample(field)
+    self._writeArray(file, self._arrayName(fieldname, sample), sample)
+  }
+
+  _writePointField(file, field, fieldname) {
+    self._writeValues(file, field, fieldname)
+    for (id in 0...self.mesh.count()) self._writeEntry(file, field[0, id])
+    file.write("\n")
+  }
+
+  _writeCellField(file, field, fieldname) {
+    self._writeValues(file, field, fieldname)
+    for (g in 1..self.maxg) {
+      if (!self._hasGrade(field, g)) continue
+      for (id in 0...self.mesh.count(g)) self._writeEntry(file, field[g, id])
+    }
+    file.write("\n")
+  }
+
+  addField(Field field, fieldname=nil) {
     self._checkField(field)
     if (field.mesh() != self.mesh) {
       _VtkFieldMeshErr.throw("Field is defined on a different mesh than the one being exported.")
     }
-    self.fields.append(field)
     _checkFieldName(fieldname)
+    self.fields.append(field)
     self.fieldnames.append(fieldname)
   }
 
   addfield(field, fieldname=nil) { self.addField(field, fieldname=fieldname) }
 
-  export(filename) {
+  export(String filename) {
     self.filename = _ensureVtk(filename)
     var f = File(self.filename, "write")
     self._writePreamble(f)
     self._writeMesh(f)
     var nf = self.fields.count()
-    if (nf > 0) {
+    var point = false
+    var cell = false
+    for (i in 0...nf) {
+      if (self._hasGrade(self.fields[i], 0)) point = true
+      if (self._hasCellData(self.fields[i])) cell = true
+    }
+    if (point) {
       f.write("POINT_DATA ${self.nvertices} ")
       for (i in 0...nf) {
-        self._writeField(f, self.fields[i], self.fieldnames[i])
+        if (self._hasGrade(self.fields[i], 0)) self._writePointField(f, self.fields[i], self.fieldnames[i])
+      }
+    }
+    if (cell) {
+      f.write("CELL_DATA ${self.n} ")
+      for (i in 0...nf) {
+        if (self._hasCellData(self.fields[i])) self._writeCellField(f, self.fields[i], self.fieldnames[i])
       }
     }
     f.close()
@@ -239,13 +290,18 @@ class VTKExporter {
  * ---------------------------------------------------------------- */
 
 class VTKImporter {
-  init(filename) {
+  init(String filename) {
     self.filename = _ensureVtk(filename)
     self.mb = MeshBuilder(dimension=3)
     self.mesh = nil
     self.fields = Dictionary()
     self.cellIds = []
+    self.cellGrades = []
     self.cellsTyped = false
+    self.names = []
+    self.pointValues = Dictionary()
+    self.cellValues = Dictionary()
+    self.onCells = false
     self.f = File(self.filename)
     self.tok = Tokenizer(self.f)
 
@@ -266,37 +322,124 @@ class VTKImporter {
 
       if (self.t=="CELL_TYPES") self._readCellTypes()
 
-      // POINT_DATA follows the mesh, so the builder can be closed here.
       if (self.t=="POINT_DATA") {
         self._ensureCellTypes()
-        self.mesh = self.mb.build()
+        self._buildMesh()
+        self.onCells = false
+      }
+
+      if (self.t=="CELL_DATA") {
+        self._ensureCellTypes()
+        self._buildMesh()
+        self.onCells = true
       }
 
       if (self.t=="SCALARS") {
         self.fieldname = self.tok.next()
         for (j in 1..4) self.t = self.tok.next() // float, 1, LOOKUP_TABLE, default
-        self.field = Field(self.mesh, 0.0)
-        for (i in 0...self.nvertices) {
-          self.field[i] = Float(self.tok.next())
-        }
-        self.fields[self.fieldname] = self.field
+        self._store(self._readScalars(self._valueCount()))
       }
 
       if (self.t=="VECTORS") {
         self.fieldname = self.tok.next()
         self.t = self.tok.next() // skip "float"
-        self.field = Field(self.mesh, Matrix([0,0,0]))
-        for (i in 0...self.nvertices) {
-          self.field[i] = self._getVector()
-        }
-        self.fields[self.fieldname] = self.field
+        self._store(self._readVectors(self._valueCount()))
       }
     }
 
     // A mesh-only file never reaches POINT_DATA.
     self._ensureCellTypes()
-    if (isnil(self.mesh)) self.mesh = self.mb.build()
+    self._buildMesh()
+    self._buildFields()
     self.f.close()
+  }
+
+  _buildMesh() {
+    if (isnil(self.mesh)) self.mesh = self.mb.build()
+  }
+
+  _valueCount() {
+    if (self.onCells) return self.cellGrades.count()
+    return self.nvertices
+  }
+
+  _readScalars(n) {
+    var vals = []
+    for (i in 0...n) vals.append(Float(self.tok.next()))
+    return vals
+  }
+
+  _readVectors(n) {
+    var vals = []
+    for (i in 0...n) vals.append(self._getVector())
+    return vals
+  }
+
+  _store(vals) { // Save one named array of values
+    var name = self.fieldname
+    var known = self.pointValues.contains(name) or self.cellValues.contains(name)
+    if (!known) self.names.append(name)
+    if (self.onCells) self.cellValues[name] = vals
+    else self.pointValues[name] = vals
+  }
+
+  _buildFields() {
+    for (name in self.names) {
+      var points = nil
+      var cells = nil
+      if (self.pointValues.contains(name)) points = self.pointValues[name]
+      if (self.cellValues.contains(name)) cells = self.cellValues[name]
+      self.fields[name] = self._makeField(points, cells)
+    }
+  }
+
+  _gradeSpec(vertices) { // Which grades hold a value
+    var grade = []
+    for (g in 0..self.mesh.maxgrade()) grade.append(0)
+    if (vertices) grade[0] = 1
+    for (g in 1..self.mesh.maxgrade()) {
+      if (self.mesh.count(g) > 0) grade[g] = 1
+    }
+    return grade
+  }
+
+  _assignPoints(field, List points) {
+    for (id in 0...points.count()) field[0, id] = points[id]
+  }
+
+  _assignCells(field, List cells) {
+    var seen = []
+    for (g in 0..self.mesh.maxgrade()) seen.append(0)
+    for (i in 0...cells.count()) {
+      var g = self.cellGrades[i]
+      var id = seen[g]
+      field[g, id] = cells[i]
+      seen[g] = id + 1
+    }
+  }
+
+  _prototype(List vals) { // Sample value for the new field
+    if (vals.count() == 0) return 0.0
+    return vals[0]
+  }
+
+  _makeField(List points, Nil cells) { // Vertex values
+    var field = Field(self.mesh, self._prototype(points))
+    self._assignPoints(field, points)
+    return field
+  }
+
+  _makeField(Nil points, List cells) { // Cell values
+    var field = Field(self.mesh, self._prototype(cells), grade=self._gradeSpec(false))
+    self._assignCells(field, cells)
+    return field
+  }
+
+  _makeField(List points, List cells) { // Vertex and cell values
+    var field = Field(self.mesh, self._prototype(points), grade=self._gradeSpec(true))
+    self._assignPoints(field, points)
+    self._assignCells(field, cells)
+    return field
   }
 
   _readCell() { // Read one cell's vertex ids
@@ -326,12 +469,15 @@ class VTKImporter {
     if (ctype == 3) {
       if (n != 2) _VtkCellTypeErr.throw("A line must have 2 points, but received ${n}.")
       self.mb.addedge(ids)
+      self.cellGrades.append(1)
     } else if (ctype == 5) {
       if (n != 3) _VtkCellTypeErr.throw("A triangle must have 3 points, but received ${n}.")
       self.mb.addface(ids)
+      self.cellGrades.append(2)
     } else if (ctype == 10) {
       if (n != 4) _VtkCellTypeErr.throw("A tetrahedron must have 4 points, but received ${n}.")
       self.mb.addvolume(ids)
+      self.cellGrades.append(3)
     } else {
       _VtkCellTypeErr.throw("Unsupported cell. Only lines, triangles, and tetrahedra are supported.")
     }
@@ -350,7 +496,7 @@ class VTKImporter {
 
   mesh() { return self.mesh }
 
-  field(fieldname) {
+  field(String fieldname) {
     _checkFieldName(fieldname)
     try {
       return self.fields[fieldname]
@@ -364,7 +510,7 @@ class VTKImporter {
 
   fieldlist() { return self.fieldList() }
 
-  containsField(fieldname) {
+  containsField(String fieldname) {
     _checkFieldName(fieldname)
     return self.fields.contains(fieldname)
   }
