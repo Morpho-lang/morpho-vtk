@@ -538,13 +538,11 @@ class VTKImporter {
   }
 
   fieldList() { return self.fields.keys() }
-
   fieldlist() { return self.fieldList() } // [Compatibility shim]
 
   containsField(String fieldname) {
     _checkFieldName(fieldname)
     return self.fields.contains(fieldname)
   }
-
   containsfield(fieldname) { return self.containsField(fieldname) } // [Compatibility shim]
 }
